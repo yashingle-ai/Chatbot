@@ -1,0 +1,4 @@
+pehle docker chalu kar 
+next vs code kholke ek terminal me ye command daal "docker run -p 6333:6333 qdrant/qdrant"
+finally dusre terminal me jaake start.py chala
+http://localhost:8000/ pe outpur dekh

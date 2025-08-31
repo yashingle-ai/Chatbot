@@ -13,19 +13,13 @@ import json
 import sys
 from typing import Optional, Dict, Any, List, Tuple
 import tempfile
-import speech_recognition as sr  # Import library for voice input
+ 
 from enum import Enum
 import re
 from config.models import ModelProvider, MODEL_CONFIGS, REPORT_TEMPLATE
 from datetime import datetime
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-import anthropic
-import groq
-import openai
-import together
+
+
 
 # Remove: sys.path.insert(0, r"F:\Wearables\Medical-RAG-LLM\Data")
 
@@ -64,7 +58,7 @@ Question: {query}
 Comparison: Let me compare these for you."""
 
 # Update model path
-MODEL_PATH = "F:/Wearables/Medical-RAG-LLM/models/mistral-7b-instruct-v0.1.Q4_K_M.gguf"
+MODEL_PATH = "D:\downloads\Insurance-RAG-LLM-main\Insurance-RAG-LLM-main\models\mistral-7b-instruct-v0.1.Q4_K_M.gguf"
 
 # Initialize components
 try:
@@ -207,6 +201,8 @@ Focus on pricing, premiums, and payment terms.
 Analysis:""",
 }
 
+
+# Only support local model
 class ModelManager:
     def __init__(self):
         self.models = {}
@@ -216,9 +212,6 @@ class ModelManager:
         for model_name, config in MODEL_CONFIGS.items():
             if config["provider"] == ModelProvider.LOCAL:
                 self.models[model_name] = self._init_local_model(config)
-            elif config["provider"] == ModelProvider.GROQ:
-                self.models[model_name] = self._init_groq_model(config)
-            # ... Initialize other providers similarly
 
     def _init_local_model(self, config):
         return CTransformers(
@@ -227,27 +220,19 @@ class ModelManager:
             config=config["config"]
         )
 
-    def _init_groq_model(self, config):
-        return groq.Groq(api_key=config["api_key"])
-
     async def generate_response(self, model_name: str, prompt: str, **kwargs):
         model = self.models.get(model_name)
         if not model:
             raise ValueError(f"Model {model_name} not found")
-
         config = MODEL_CONFIGS[model_name]
-        if config["provider"] == ModelProvider.LOCAL:
-            return model(prompt, **kwargs)
-        elif config["provider"] == ModelProvider.GROQ:
-            response = await model.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model=config["model_id"],
-                **config["config"]
-            )
-            return response.choices[0].message.content
-        # ... Handle other providers
+        return model(prompt, **kwargs)
 
-# Initialize model manager
+
+# Ensure MODEL_CONFIGS uses the correct local model path
+for model_name, config in MODEL_CONFIGS.items():
+    if config["provider"] == ModelProvider.LOCAL:
+        config["model_path"] = r"D:\\downloads\\Insurance-RAG-LLM-main\\Insurance-RAG-LLM-main\\models\\mistral-7b-instruct-v0.1.Q4_K_M.gguf"
+
 model_manager = ModelManager()
 
 # Update the retriever configuration for better results
@@ -338,26 +323,7 @@ async def process_query_new(
 async def query_alias(request: QueryRequest):
     return await process_query_new(request)
 
-# Add a new endpoint for voice commands
-@app.post("/query_voice")
-async def query_voice(file: UploadFile = File(...), conversation_context: Optional[str] = None, language: Optional[str] = "English"):
-    """Convert voice to text then process query"""
-    try:
-        contents = await file.read()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            tmp.write(contents)
-            tmp.flush()
-            tmp_name = tmp.name
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(tmp_name) as source:
-            audio_data = recognizer.record(source)
-            language_code = "en-US" if language.lower() == "english" else None
-            text = recognizer.recognize_google(audio_data, language=language_code) if language_code else recognizer.recognize_google(audio_data)
-        query_request = QueryRequest(query=text, conversation_context=conversation_context, language=language)
-        return await process_query_new(query_request)
-    except Exception as e:
-        print(f"Voice query error: {e}")
-        raise HTTPException(status_code=500, detail=f"Voice query failed: {str(e)}")
+
 
 # Add health-check endpoint
 @app.get("/ping")
@@ -392,15 +358,15 @@ def search_financial_info(query: str) -> dict:
     
     return results
 
-# Add report generation endpoint
+
+# Add report generation endpoint (no PDF, just JSON)
 @app.post("/generate_report")
 async def generate_report(
     request: Request,
     model_name: str = "local-mistral",
-    format: str = "pdf"
+    format: str = "json"
 ):
     conversation_history = request.session.get("conversation_history", [])
-    
     # Generate report content using the selected model
     report_prompt = REPORT_TEMPLATE.format(
         summary="Summarize our conversation",
@@ -410,46 +376,10 @@ async def generate_report(
         model_name=model_name,
         date=datetime.now().strftime("%Y-%m-%d")
     )
-    
     report_content = await model_manager.generate_response(
         model_name=model_name,
         prompt=report_prompt
     )
-
-    if format == "pdf":
-        # Generate PDF using ReportLab
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
-
-        # Add title
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30
-        )
-        story.append(Paragraph("Financial Consultation Report", title_style))
-        story.append(Spacer(1, 12))
-
-        # Add content
-        for line in report_content.split('\n'):
-            if line.strip():
-                story.append(Paragraph(line, styles["Normal"]))
-                story.append(Spacer(1, 12))
-
-        doc.build(story)
-        buffer.seek(0)
-        
-        return Response(
-            content=buffer.getvalue(),
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": "attachment; filename=financial_report.pdf"
-            }
-        )
-
     return JSONResponse(content={"report": report_content})
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
 from qdrant_client import QdrantClient
 
-DATA_DIR = "F:/Wearables/Medical-RAG-LLM/Data"
+DATA_DIR = "D:\downloads\Insurance-RAG-LLM-main\Insurance-RAG-LLM-main\Data"
 
 def ingest_docs():
     """Load and process insurance and banking documents"""
