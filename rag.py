@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, HTTPException, Response, UploadFile, File 
 from fastapi.responses import HTMLResponse, JSONResponse 
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles 
+import torch
 from langchain_community.llms import CTransformers
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
@@ -35,7 +36,7 @@ class QueryRequest(BaseModel):
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# Update config with more stable parameters
+# Update config with more stable parameters and use gpu_layers for CTransformers
 config = {
     'max_new_tokens': 512,  # Increased for better completion
     'context_length': 2048,  # Increased context window
@@ -44,6 +45,7 @@ config = {
     'top_k': 50,  # Added for better token selection
     'stream': False,
     'threads': min(4, int(os.cpu_count() / 2)),
+    'gpu_layers': -1,  # Use all layers on GPU if available
 }
 
 # Simplified prompt templates
@@ -58,7 +60,7 @@ Question: {query}
 Comparison: Let me compare these for you."""
 
 # Update model path
-MODEL_PATH = "D:\downloads\Insurance-RAG-LLM-main\Insurance-RAG-LLM-main\models\mistral-7b-instruct-v0.1.Q4_K_M.gguf"
+MODEL_PATH = r"D:\downloads\Insurance-RAG-LLM-main\Insurance-RAG-LLM-main\models\mistral-7b-instruct-v0.1.Q4_K_M.gguf"
 
 # Initialize components
 try:
@@ -73,7 +75,7 @@ try:
     # Initialize embeddings with specific kwargs
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs={'device': 'cpu'},
+        model_kwargs={'device': 'cuda' if torch.cuda.is_available() else 'cpu'},
         encode_kwargs={'normalize_embeddings': True}
     )
     
