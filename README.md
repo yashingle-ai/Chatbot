@@ -120,10 +120,10 @@ pip install -r requirements.txt
 
 ![2](<images/image%20(1).png>)
 ![3](<images/image%20(2).png>)
-![1](images/image.png)
 
 ## Contact
 
 For any questions or support, please contact:
 
 - **Deep Das**: deepdblm@gmail.com
+- **Yash Ingle**: yash.ingle003@gmail.com
